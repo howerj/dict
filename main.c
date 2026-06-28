@@ -1,7 +1,7 @@
 #define DICT_IMPLEMENTATION
 #define DICT_EXTERN static inline
 #define DICT_API DICT_EXTERN
-#define DICT_USE_ALTERNATE_DICTIONARY
+/*#define DICT_USE_ALTERNATE_DICTIONARY*/
 #ifdef DICT_USE_ALTERNATE_DICTIONARY
 #include "alt2.h"
 #endif
