@@ -1,0 +1,7 @@
+codec
+dict
+*.exe
+*.y
+*.x
+*.z
+*.orig

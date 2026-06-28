@@ -1,0 +1,15 @@
+#!/bin/sh
+
+IN="$1"
+
+set +eux;
+make dict;
+
+echo "Test string:'${IN}'"
+IBYTES=`echo -n "${IN}" | wc | awk '{print $3}'`
+OBYTES=`echo -n "${IN}" | ./dict c | wc | awk '{print $3}'`
+
+echo "IBYTES=${IBYTES} OBYTES=${OBYTES}"
+RATIO=`echo "2k ${OBYTES} ${IBYTES} / 100 * p" | dc`
+echo "RATIO=${RATIO}%"
+
