@@ -1,0 +1,42 @@
+#!/bin/sh
+
+METHOD="$1"
+IN="$2"
+
+set +eux;
+
+if [ ! -f dict ]; then
+	make dict;
+fi;
+
+if [ "${METHOD}" = "string" ]; then
+	IFILE=`mktemp`;
+	XFILE=`mktemp`;
+	OFILE=`mktemp`;
+
+	echo -n ${IN} > ${IFILE};
+	./dict c < ${IFILE} > ${XFILE};
+	./dict d < ${XFILE} > ${OFILE};
+	cmp ${IFILE} ${OFILE};
+
+	IBYTES=`wc ${IFILE} | awk '{print $3}'`;
+	XBYTES=`wc ${XFILE} | awk '{print $3}'`;
+	RATIO=`echo "2k ${XBYTES} ${IBYTES} / 100 * p" | dc`;
+	rm ${IFILE} ${XFILE} ${OFILE};
+	echo "${IN}: IBYTES=${IBYTES} OBYTES=${XBYTES} RATIO=${RATIO}";
+elif [ "${METHOD}" = "file" ]; then
+	echo "Test file:'${IN}'";
+	./dict c < ${IN}   > ${IN}.x;
+	./dict d < ${IN}.x > ${IN}.orig;
+	cmp ${IN} ${IN}.orig;
+
+	IBYTES=`wc ${IN}   | awk '{print $3}'`;
+	OBYTES=`wc ${IN}.x | awk '{print $3}'`;
+
+	RATIO=`echo "2k ${OBYTES} ${IBYTES} / 100 * p" | dc`;
+	echo "IBYTES=${IBYTES} OBYTES=${OBYTES} RATIO=${RATIO}";
+else
+	echo "Unknown method: ${METHOD}";
+	return 1;
+fi;
+ 

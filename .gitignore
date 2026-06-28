@@ -5,3 +5,6 @@ dict
 *.x
 *.z
 *.orig
+*.zero
+*.bin
+*.tmp

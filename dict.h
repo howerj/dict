@@ -4,7 +4,7 @@
 #define DICT_LICENSE "0BSD / Public Domain"
 #define DICT_EMAIL "howe.r.j.89@gmail.com"
 #define DICT_PROJECT "A header-only fixed dictionary compression CODEC"
-#define DICT_VERSION ("v1.0.0")
+#define DICT_VERSION ("v2.0.0")
 #define DICT_REPO "https://github.com/howerj/dict"
 
 #include <assert.h>
@@ -51,7 +51,7 @@
 	X("so") X("&qu") X("&q") X("\n  ") X("M") X("lt") X("P") X("ss") \
 	X("pa") X(" re") X("E") X("Th") X("ry") X("im") X(" <") X(">\n") \
 	X("  <") X(">\n ") X(" A") X("mo") X("==") X("D") X(" n") X("n t") \
-	X("m ") X(" C") X("po") X("ts") X("ad") X("mi")
+	X("m ") X(" C") X("po") X("ts") X("ad")
 #endif
 
 static const unsigned char *dict_codec[] = {
@@ -105,10 +105,20 @@ static int dict_put(dict_t *c, const int ch) {
 static int dict_gets(dict_t *c, unsigned char *s, int len) {
 	assert(s);
 	for (int i = 0; i < len; i++) {
-		int ch = dict_get(c);
+		const int ch = dict_get(c);
 		if (ch < 0)
 			return i;
 		s[i] = ch;
+	}
+	return len;
+}
+
+static int dict_puts(dict_t *c, unsigned char *s, int len) {
+	assert(s);
+	for (int i = 0; i < len; i++) {
+		const int ch = dict_put(c, s[i]);
+		if (ch < 0)
+			return -1;
 	}
 	return len;
 }
@@ -125,6 +135,7 @@ static int dict_search(const unsigned char *s, int len) {
 }
 
 static int dict_find(const unsigned char *s, int len) {
+	assert(s);
 	for (int i = len; i; i--) {
 		const int r = dict_search(s, i);
 		if (r >= 0)
@@ -133,19 +144,44 @@ static int dict_find(const unsigned char *s, int len) {
 	return -1;
 }
 
+static int dict_flush(dict_t *c, unsigned char *buf, int *length) {
+	assert(c);
+	assert(buf);
+	assert(length);
+	const int ibuf = *length;
+	assert(ibuf >= 0);
+	if (ibuf == 1) {
+		if (dict_put(c, 255) < 0)
+			return -1;
+		if (dict_put(c, buf[0]) < 0)
+			return -1;
+	} else if (ibuf > 1) {
+		if (dict_put(c, 254) < 0)
+			return -1;
+		if (dict_put(c, ibuf - 2) < 0)
+			return -1;
+		if (dict_puts(c, buf, ibuf) < 0)
+			return -1;
+	}
+	*length = 0;
+	return 0;
+}
+
 DICT_API int dict_compress(dict_t *c) {
 	assert(c);
+	unsigned char buf[257] = { 0, };
 	unsigned char word[DICT_MAX_ENTRY_LENGTH] = { 0, };
+	int ibuf = 0;
 	int len = dict_gets(c, word, DICT_MAX_ENTRY_LENGTH);
 	for (;len > 0;) {
 		int f = dict_find(word, len);
 		if (f < 0) {
-			if (dict_put(c, 255) < 0)
-				return -1;
-			if (dict_put(c, word[0]) < 0)
-				return -1;
+			buf[ibuf++] = word[0];
+			if (ibuf >= (int)sizeof(buf))
+				if (dict_flush(c, buf, &ibuf) < 0)
+					return -1;
 			memmove(word, word + 1, DICT_MAX_ENTRY_LENGTH - 1);
-			int ch = dict_get(c);
+			const int ch = dict_get(c);
 			if (ch < 0)
 				len--;
 			word[DICT_MAX_ENTRY_LENGTH - 1] = ch;
@@ -161,10 +197,14 @@ DICT_API int dict_compress(dict_t *c) {
 			len += n;
 			assert(len <= DICT_MAX_ENTRY_LENGTH);
 			assert(len >= 0);
+			if (dict_flush(c, buf, &ibuf) < 0)
+					return -1;
 			if (dict_put(c, f) < 0)
 				return -1;
 		}
 	}
+	if (dict_flush(c, buf, &ibuf) < 0)
+			return -1;
 	return 0;
 }
 
@@ -180,6 +220,17 @@ DICT_API int dict_decompress(dict_t *c) {
 				return -1;
 			if (dict_put(c, lit) < 0)
 				return -1;
+		} else if (op == 254) {
+			const int cnt = dict_get(c);
+			if (cnt < 0)
+				return -1;
+			for (int i = 0; i < (cnt + 2); i++) {
+				const int lit = dict_get(c);
+				if (lit < 0)
+					return -1;
+				if (dict_put(c, lit) < 0)
+					return -1;
+			}
 		} else {
 			assert(op >= 0 && op <= (int)DICT_MAX_ENTRIES);
 			const unsigned char size = dict_sizes[op];
